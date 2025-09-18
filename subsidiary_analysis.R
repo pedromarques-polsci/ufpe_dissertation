@@ -2,8 +2,11 @@
 library(countrycode)
 library(ggrepel)
 library(janitor)
+library(readxl)
 library(tidyverse)
+library(zoo)
 
+# SOCX ANALYSIS -----------------------------------------------------------
 oecd <- read_csv2("raw_data/oecd_membership.csv") %>% 
   mutate(iso3c = countrycode(sourcevar = country,
                              origin = "country.name",
@@ -75,7 +78,7 @@ socx_ts <- socx_df %>%
                values_to = "value")
 
 shade <- data.frame(x1=c(2007, 1990), x2=c(2009, 1993), 
-                    y1=c(15.5, 15.5), y2=c(23.9, 23.9))
+                    y1=c(15.5, 15.5), y2=c(23.2, 23.2))
 
 gg_socx_gdp <- socx_ts %>% 
   ggplot(aes(x = time_period, y = value, 
@@ -86,16 +89,16 @@ gg_socx_gdp <- socx_ts %>%
             color=NA, alpha=0.5, fill = "grey") +
   geom_line(linewidth = 1) +
   geom_text_repel(aes(label = ifelse(sample == "public_gdp_pct", 
-                                     asc_time, NA),
-                      vjust = 3)) +
+                                     asc_time, NA)),
+                  vjust = 3, size = 6.5) +
   geom_point() +
   # geom_smooth(method = "lm", color = "black", linetype = "dashed",
   #             linewidth = 0.5, fill = "lightblue") +
   scale_linetype_manual(labels = c("Membros de 1980", "Todos os membros"),
                         values = c("twodash", "solid")) +
-  labs(x = "Ano", y = "Gasto social (% PIB)", linetype = "Amostra") +
+  labs(x = "Ano", y = "Média de gasto social (% PIB)", linetype = "Amostra") +
   theme_minimal() +
-  theme(text = element_text(size = 21),
+  theme(text = element_text(size = 30),
         axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "bottom") +
   scale_x_continuous(breaks =  seq(1980, 2019, by = 2))
@@ -145,8 +148,10 @@ gg_long_term <- socx_long_term %>%
   ggplot(aes(x = reorder(ref_area, public_gdp_pct), y = public_gdp_pct)) +
   geom_bar(stat = "identity", fill = "#0088CC") +
   geom_hline(yintercept = 0, linetype = "dashed", linewidth = 1) +
+  geom_text(aes(label = paste0(round(public_gdp_pct, 1))),
+            hjust = 1.3, size = 6.5) +
   theme_minimal() +
-  xlab("Região") + ylab("Variação absoluta (p.p)") +
+  xlab("País") + ylab("Variação absoluta (p.p)") +
   theme(text = element_text(size = 21)) +
   coord_flip()
 
@@ -170,7 +175,7 @@ ggsave("plot/gg_socx_gdp.jpeg", gg_socx_gdp,
        dpi = 500)
 
 ggsave("plot/gg_socx_xx.jpeg", gg_socx_xx, 
-       width = 19, height = 10, 
+       width = 15, height = 8, 
        dpi = 500)
 
 ggsave("plot/gg_socx_xxi.jpeg", gg_socx_xxi, 
@@ -178,5 +183,58 @@ ggsave("plot/gg_socx_xxi.jpeg", gg_socx_xxi,
        dpi = 500)
 
 ggsave("plot/gg_long_term.jpeg", gg_long_term, 
-       width = 18, height = 10, 
+       width = 15, height = 8, 
        dpi = 500)
+
+# CMD PRICES --------------------------------------------------------------
+cmd_prices <- read_xlsx("raw_data/cmd_prices.xlsx") %>% 
+  clean_names() %>% 
+  slice(-1,-2,-3) %>% 
+  rename(date = commodity) %>% 
+  mutate(date = as.yearmon(date, "%YM%m"),
+         date = as.Date(date),
+         year = year(date),
+         across(pallfnf:papple, ~as.numeric(.x)))
+
+cmd_prices %>% 
+  filter(year > 2002) %>% 
+  ggplot(aes(x = date, y = pallfnf)) +
+  geom_line()
+
+shade_boom <- data.frame(x1=c(as.Date("2003-01-01")), 
+                         x2=c(as.Date("2013-12-01")), 
+                         y1=c(30), 
+                         y2=c(310))
+
+gg_cmd_prices <- cmd_prices %>% 
+  select(date, year, pfandb, prawm, pallmeta, pnrg) %>% 
+  filter(year < 2020) %>% 
+  pivot_longer(cols = pfandb:pnrg, names_to = "commodity",
+               values_to = "price") %>%
+  mutate(commodity = case_when(commodity == "pfandb" ~ 
+                                 "Alimentos e Bebidas",
+                               commodity == "prawm" ~ 
+                                 "Materiais Agrícolas Brutos",
+                               commodity == "pallmeta" ~
+                                 "Metais",
+                               commodity == "pnrg" ~
+                                 "Combustíveis"
+  )) %>% 
+  ggplot(aes(x = date, y = price, group = commodity)) +
+  geom_rect(data = shade_boom,
+            mapping=aes(xmin = x1, xmax = x2, ymin = y1, ymax = y2),
+            inherit.aes = FALSE,
+            color=NA, alpha=0.45, fill = "grey80") +
+  geom_line(aes()) +
+  theme_minimal() +
+  facet_wrap(~commodity) +
+  xlab("Mês") + ylab("Índice de Preços (2016 = 100)") +
+  scale_x_date(date_labels = "%Y", breaks = "2 year") +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+gg_cmd_prices
+
+ggsave("plot/gg_cmd_prices.jpeg", gg_cmd_prices, 
+       width = 15, height = 8, 
+       dpi = 300)

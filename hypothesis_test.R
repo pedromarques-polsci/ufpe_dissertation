@@ -122,7 +122,12 @@ ws_dataset <- dataset_interpol %>%
   left_join(dpi_blz_bhs %>% select(ifs, year, ideology), 
             join_by(iso3c == ifs, year == year)) %>% 
   mutate(v2pariglef_ord = ifelse(is.na(v2pariglef_ord), ideology,
-                                       v2pariglef_ord)) %>% 
+                                       v2pariglef_ord),
+         region2 = case_when(
+           region2 == "South America" ~ "América do Sul",
+           region2 == "Caribbean" ~ "Caribe",
+           region2 == "Central America and MEX" ~ "América Central e MEX"
+         )) %>% 
   select(-ideology)
 
 ## 1.2 Effective countries ----------------------------------------------------
@@ -303,6 +308,40 @@ stats <- ws_dataset %>% filter(year < 2020,
 stats
 
 ## 3.2 Commodity Boom Era ----------------------------------------------
+
+# Mean performance
+shade_export_boom <- data.frame(x1=c(2003), 
+                         x2=c(2013), 
+                         y1=c(200), 
+                         y2=c(1600))
+
+gg_mean_export_region <- ws_dataset %>% 
+  mutate(region2 = 
+           fct_relevel(region2, "América do Sul",
+                       "Caribe", "América Central e MEX")) %>% 
+  group_by(year, region2) %>% 
+  reframe(mean_cmd = mean(real_cmd_exports_pcp, na.rm = T)) %>% 
+  filter(year < 2020, year > 1994) %>% 
+  ggplot(aes(x = year, y = mean_cmd, group = region2)) +
+  geom_rect(data = shade_export_boom,
+            mapping=aes(xmin = x1, xmax = x2, ymin = y1, ymax = y2),
+            inherit.aes = FALSE,
+            color=NA, alpha=0.45, fill = "grey80") +
+  geom_line(aes()) +
+  geom_point(aes(shape = region2), size = 4) +
+  geom_vline(xintercept = 2008, linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Ano", y = "Exportação de Commodities per capita", 
+       shape = "Subregião") +
+  scale_x_continuous(breaks = seq(1995, 2019, by = 1)) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+
+ggsave("plot/gg_mean_export_region.jpeg", gg_mean_export_region, 
+       width = 15, height = 8, 
+       dpi = 300)
+
 boom_var <- ws_dataset %>% 
   filter(iso3c %in% eff_iso3c$iso3c) %>% 
   group_by(iso3c) %>% 
