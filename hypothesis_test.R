@@ -307,13 +307,12 @@ stats <- ws_dataset %>% filter(year < 2020,
 
 stats
 
-## 3.2 Commodity Boom Era ----------------------------------------------
-
-# Mean performance
+## 3.2 Fourth chapter --------------------------------------------------
+# Commodity boom
 shade_export_boom <- data.frame(x1=c(2003), 
-                         x2=c(2013), 
-                         y1=c(200), 
-                         y2=c(1600))
+                                x2=c(2013), 
+                                y1=c(200), 
+                                y2=c(1600))
 
 gg_mean_export_region <- ws_dataset %>% 
   mutate(region2 = 
@@ -342,6 +341,165 @@ ggsave("plot/gg_mean_export_region.jpeg", gg_mean_export_region,
        width = 15, height = 8, 
        dpi = 300)
 
+# Mean social expenditure
+cores_dalton_friendly <- c(
+  "#005AFF",   # Azul intenso (mantido, mas se quiser remover, avise!)
+  "red",   # Vermelho-alaranjado
+  "#FF69E9"   # Rosa-choque (mantido)
+)
+
+latamean <- ws_dataset %>% 
+  group_by(year) %>% 
+  reframe(latam_mean = mean(cg_gdp_sexp, na.rm = T))
+  
+gg_welfare_region_mean <- ws_dataset %>% 
+  mutate(region2 = 
+           fct_relevel(region2, "América do Sul",
+                       "Caribe", "América Central e MEX")) %>% 
+  group_by(year, region2) %>% 
+  reframe(mean_sexp = mean(cg_gdp_sexp, na.rm = T)) %>% 
+  filter(year < 2020) %>% 
+  left_join(latamean) %>% 
+  ggplot(aes(x = year, y = mean_sexp, group = region2)) +
+  annotate("rect", 
+           xmin = 2003, xmax = 2013,
+           ymin = -Inf, ymax = Inf,
+           fill = "grey80", alpha = 0.45) +
+  geom_line(aes(colour = region2), linewidth = 1.5,
+            linetype = "solid") +
+  geom_line(aes(y = latam_mean, linetype = "América Latina e Caribe"), 
+            linewidth = 1.5) +
+  scale_colour_manual(values = cores_dalton_friendly) +
+  scale_linetype_manual(values = "dashed", name = "") +
+  geom_vline(xintercept = 2008, linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Ano", y = "Gastos Sociais (% PIB)", 
+       colour = "Recorte") +
+  scale_x_continuous(breaks = seq(1990, 2019, by = 1)) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+
+gg_welfare_region_mean
+
+ggsave("plot/gg_welfare_region_mean.jpeg", gg_welfare_region_mean, 
+       width = 11, height = 6, 
+       dpi = 300)
+
+gg_welfare_latam_mean <- ws_dataset %>% 
+  group_by(year) %>% 
+  reframe(mean_sexp = mean(cg_pcp_sexp, na.rm = T)) %>% 
+  filter(year < 2020) %>% 
+  ggplot(aes(x = year, y = mean_sexp)) +
+  annotate("rect", 
+           xmin = 2003, xmax = 2013,
+           ymin = -Inf, ymax = Inf,
+           fill = "grey80", alpha = 0.45) +
+  geom_line(aes(), linewidth = 1) +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed",
+              linewidth = 0.5, fill = "lightblue") +
+  geom_point(size = 3, shape = 15) +
+  #geom_vline(xintercept = 2008, linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Ano", y = "Gastos Sociais per capita") +
+  scale_x_continuous(breaks = seq(1990, 2019, by = 1)) +
+  theme(text = element_text(size = 20),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
+
+gg_welfare_latam_mean
+
+ggsave("plot/gg_welfare_latam_mean.jpeg", gg_welfare_latam_mean, 
+       width = 11, height = 6, 
+       dpi = 300)
+
+# Mean of p.p variation by decade and region
+ws_dataset %>% 
+  mutate(decade = paste0(substr(year, 1, 3), 0),
+         year_last_digit = substr(year, 4, 4)) %>% 
+  arrange(iso3c, year) %>% 
+  group_by(iso3c, decade) %>% 
+  reframe(cg_gdp_sexp = cg_gdp_sexp[which(year_last_digit==9)] -
+           cg_gdp_sexp[which(year_last_digit==0)],
+          region2 = first(region2)) %>% 
+  group_by(decade, region2) %>% 
+  reframe(x = mean(cg_gdp_sexp, na.rm = T)) %>% filter(decade != 2020) %>% 
+  pivot_wider(names_from = decade, names_prefix = "d", values_from = x) %>% 
+  mutate(across(d1990:d2010, ~round(.x, 2)))
+
+# Mean of p.p variation by decade
+ws_dataset %>% 
+  mutate(decade = paste0(substr(year, 1, 3), 0),
+         year_last_digit = substr(year, 4, 4)) %>% 
+  arrange(iso3c, year) %>% 
+  group_by(iso3c, decade) %>% 
+  reframe(cg_gdp_sexp = cg_gdp_sexp[which(year_last_digit==9)] -
+            cg_gdp_sexp[which(year_last_digit==0)],
+          region2 = first(region2)) %>% 
+  group_by(decade) %>% 
+  reframe(x = mean(cg_gdp_sexp, na.rm = T)) %>% filter(decade != 2020) %>% 
+  pivot_wider(names_from = decade, names_prefix = "d", values_from = x) %>% 
+  mutate(across(d1990:d2010, ~round(.x, 2)))
+
+# Mean of p.p variation during commodity boom by region
+ws_dataset %>% 
+  arrange(iso3c, year) %>% 
+  group_by(iso3c) %>% 
+  reframe(cg_gdp_sexp = cg_gdp_sexp[which(year==2013)] -
+            cg_gdp_sexp[which(year==2003)],
+          region2 = first(region2)) %>% 
+  group_by(region2) %>% 
+  reframe(x = mean(cg_gdp_sexp, na.rm = T))
+
+# Mean of p.p variation during commodity boom
+ws_dataset %>% 
+  arrange(iso3c, year) %>% 
+  group_by(iso3c) %>% 
+  reframe(cg_gdp_sexp = cg_gdp_sexp[which(year==2013)] -
+            cg_gdp_sexp[which(year==2003)],
+          region2 = first(region2)) %>% 
+  ungroup() %>% 
+  reframe(x = mean(cg_gdp_sexp, na.rm = T))
+
+# Net advancement
+ws_net_advance <- ws_dataset %>% 
+  group_by(iso3c) %>% 
+  reframe(boom = cg_gdp_sexp[which(year==2013)] -
+            cg_gdp_sexp[which(year==2003)],
+          
+          post_boom = cg_gdp_sexp[which(year==2019)] -
+            cg_gdp_sexp[which(year==2014)],
+          
+          region2 = first(region2))
+
+gg_welfare_net_advance <- ws_net_advance %>%
+  filter(!is.na(boom),
+         !is.na(post_boom)) %>% 
+  ggplot(aes(x = reorder(iso3c, boom))) +
+  geom_bar(aes(y = boom, fill = "2003-2013"), 
+           stat = "identity") +
+  geom_bar(aes(y = post_boom), 
+           fill = NA, colour = "black", linetype = "dashed",
+           stat = "identity", ) +
+  geom_point(aes(y = post_boom, 
+                 fill = "2014-2019"), size = 7, shape = 18,
+             colour = "darkblue") +
+  scale_fill_manual(name = "Período", 
+                    values = c("2003-2013" = "#00A9E0",
+                               "2014-2019" = "darkblue")) +
+  coord_flip() +
+  theme_minimal() +
+  xlab("País") + ylab("Variação absoluta (p.p)") +
+  theme(text = element_text(size = 21),
+        legend.position = "bottom")
+
+gg_welfare_net_advance
+
+ggsave("plot/gg_welfare_net_advance.jpeg", gg_welfare_net_advance, 
+       width = 13, height = 7, 
+       dpi = 300)
+
+## 3.2 Commodity Boom Era ----------------------------------------------
 boom_var <- ws_dataset %>% 
   filter(iso3c %in% eff_iso3c$iso3c) %>% 
   group_by(iso3c) %>% 
@@ -567,6 +725,7 @@ cov_plot.wrap <- function(data = ws_dataset, outcome, treatment,
     ylab(outcome.label) +
     theme_minimal()
 }
+
 ### 4.1 Social spending per capita ----------------------------------------
 # Commodity Exports
 cov_cg_pcp_export <- 
@@ -1095,6 +1254,63 @@ ggsave("plot/def_prop_gdp_ts.jpeg", def_prop_gdp_ts, width = 12,
 ws_dataset %>% 
   ws_visualizer(real_cmd_exports_pcp, 
                 "Receita de exportação de commodities per capita")
+
+
+# EUCLIDEAN DISTANCE ----------------------------------------------------
+euclidean_mean <- ws_dataset %>%
+  filter(year < 2020) %>% 
+  group_by(iso3c) %>% 
+  summarise(mean_cmd = mean(log_real_cmd_exports_pcp, na.rm = T),
+            dist = first(dist),
+            iso3c = first(iso3c)) %>% 
+  ggplot(aes(x = mean_cmd, y = dist)) +
+  geom_text_repel(aes(y = dist, x = mean_cmd, label = iso3c),
+                  size = 5.5) +
+  xlab("Média de exportação de commodities") +
+  ylab("Distância euclidiana em relação aos Estados Unidos") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+euclidean_2019 <- ws_dataset %>%
+  filter(year == 2019) %>% 
+  group_by(iso3c) %>% 
+  ggplot(aes(x = log_real_cmd_exports_pcp, y = dist)) +
+  geom_text_repel(aes(y = dist, x = log_real_cmd_exports_pcp, label = iso3c),
+                  size = 5.5) +
+  xlab("Exportação de commodities (2019)") +
+  ylab("Distância euclidiana em relação aos Estados Unidos") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+ggsave("plot/euclidean_mean.jpeg", euclidean_mean,
+               width = 15, height = 8,
+               dpi = 500)
+
+ggsave("plot/euclidean_2019.jpeg", euclidean_2019,
+       width = 15, height = 8,
+       dpi = 500)
+
+library(ivreg)
+
+data_iv <- ws_dataset %>% filter(year < 2020)
+
+iv1 <- ivreg(log_cg_pcp_sexp ~ log_real_cmd_exports_pcp +
+               maj + kof_trade_df + 
+               dp_ratio_old + v2pariglef_ord + def_prop_gdp +
+               as.character(year) | 
+               dist + maj + kof_trade_df + 
+               dp_ratio_old + v2pariglef_ord + def_prop_gdp + as.character(year), 
+             data = data_iv)
+
+iv1 %>% summary()
+
+coeftest(iv1, vcov = vcovHC, type = "HC1")
 
 # LEFTOVER ----------------------------------------------------------------
 # formula <- glue("cg_gdp_sexp ~ log_real_cmd_exports_pcp + maj +
