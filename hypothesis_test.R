@@ -20,8 +20,11 @@ library(zoo)
 # Functions
 # Filter is applied to the dataset before interpolation
 data_sample <- function(df, variable, 
-                        old_dataset = dataset) {
-  df <- old_dataset %>% 
+                        old_dataset = dataset,
+                        doit = T) {
+  
+  if(doit == T) {
+    df <- old_dataset %>% 
     arrange(iso3c, year) %>% 
     filter(year %in% c(1990:2019)) %>% 
     group_by(iso3c) %>% 
@@ -30,7 +33,11 @@ data_sample <- function(df, variable,
     select(iso3c) %>%
     inner_join(df, by = "iso3c") %>% 
     ungroup() %>% 
-    filter(year %in% c(1990:2019))
+    filter(year %in% c(1990:2019))}
+  
+  if(doit == F) {
+    df <- ws_dataset
+  }
   
   return(df)
 }
@@ -47,11 +54,15 @@ latin_countries <- c(
 
 dataset <- readRDS("final_data/ws_dataset.RDS") %>% 
   mutate(latin = ifelse(iso3c %in% latin_countries, 1, 0),
-         log_cg_pcp_sexp = log(cg_pcp_sexp)) %>% 
+         log_cg_pcp_sexp = log(cg_pcp_sexp),
+         crisis = ifelse(year %in% c(2008, 2009), 1, 0)) %>% 
   arrange(iso3c, year) %>% 
   group_by(iso3c) %>% 
   ungroup()
-  
+
+# Do not interpolate these countries, because of 10 years of data blackout
+no_int_iso3c <- c("BLZ", "GRD", "VCT")
+
 dataset_interpol <- dataset %>% 
   arrange(iso3c, year) %>% 
   group_by(iso3c) %>% 
@@ -63,7 +74,8 @@ dataset_interpol <- dataset %>%
          
          # Linear Interpolation
          cg_pcp_sexp = na.approx(cg_pcp_sexp, na.rm = FALSE),
-         cg_prop_sexp = na.approx(cg_prop_sexp, na.rm = FALSE),
+         cg_prop_sexp = ifelse(iso3c %in% no_int_iso3c, 
+                               cg_prop_sexp, na.approx(cg_prop_sexp, na.rm = FALSE)),
          cg_gdp_sexp = na.approx(cg_gdp_sexp, na.rm = FALSE),
          cg_prop_def = na.approx(cg_prop_def, na.rm = FALSE),
          def_prop_gdp = na.approx(def_prop_gdp, na.rm = FALSE),
@@ -165,6 +177,9 @@ kof_trade_df + dp_ratio_old + v2pariglef_ord"
 prop.gdp.model <- "cg_gdp_sexp ~ log_real_cmd_exports_pcp + maj + 
 kof_trade_df + dp_ratio_old + v2pariglef_ord + def_prop_gdp"
 
+prop.gdp.model <- "cg_gdp_sexp ~ log_real_cmd_exports_pcp + maj + 
+kof_trade_df + dp_ratio_old + v2pariglef_ord"
+
 ## 1.4 Dataset for GMM analysis --------------------------------------------
 gmm_dataset <- ws_dataset %>% data_sample(variable = "log_cg_pcp_sexp",
                            old_dataset = dataset)
@@ -182,7 +197,7 @@ missing_pre_int <- dataset %>%
             mean_gdp = mean(!is.na(cg_gdp_sexp)),
             mean_def = mean(!is.na(cg_prop_def)))
 
-missing_pre_int %>% select(!mean_def) %>% 
+missing_pre_int %>% 
   arrange(desc(mean_pcp + mean_prop + mean_gdp)) %>% 
   print(n = 50)
 
@@ -703,9 +718,11 @@ cov_plot <- function(data = ws_dataset, outcome, treatment,
                        labels = c("Caribe", "América Central + Méx", 
                                   "América do Sul"),
                        values = c("#FBB4AE", "#E37BA2", "black")) +
-    geom_smooth(method='lm', formula= y~x) +
+    geom_smooth(method = "lm", color = "black", linetype = "dashed",
+                linewidth = 0.5, fill = "grey") +
     theme_minimal() +
-    theme(legend.position = "bottom")
+    theme(legend.position = "bottom",
+          text = element_text(size = 21))
 }
 
 cov_plot.wrap <- function(data = ws_dataset, outcome, treatment,
@@ -719,11 +736,13 @@ cov_plot.wrap <- function(data = ws_dataset, outcome, treatment,
     ggplot(aes(x = !!treatment, y = !!outcome)) +
     geom_point() +
     stat_cor(label.y = Inf, vjust = 1.0) +
-    geom_smooth(method='lm', formula= y~x) +
+    geom_smooth(method = "lm", color = "black", linetype = "dashed",
+                linewidth = 0.5, fill = "grey") +
     facet_wrap(~region2, nrow = 2, scale = "free") +
     xlab(treatment.label) +
     ylab(outcome.label) +
-    theme_minimal()
+    theme_minimal() +
+    theme(text = element_text(size = 21))
 }
 
 ### 4.1 Social spending per capita ----------------------------------------
@@ -745,11 +764,81 @@ cov_cg_pcp_export_wrap <-
 cov_cg_pcp_export_wrap
 
 ggsave("plot/cov_cg_pcp_export.jpeg", cov_cg_pcp_export, 
-       width = 8, height = 5, 
+       width = 12, height = 8, 
        dpi = 500)
 
 ggsave("plot/cov_cg_pcp_export_wrap.jpeg", cov_cg_pcp_export_wrap, 
-       width = 8, height = 5, 
+       width = 12, height = 8, 
+       dpi = 500)
+
+### 4.2 Euclidean Distance from USA ----------------------------------------
+euclidean_mean <- ws_dataset %>%
+  filter(year < 2020) %>% 
+  group_by(iso3c) %>% 
+  summarise(mean_cmd = mean(log_real_cmd_exports_pcp, na.rm = T),
+            dist = first(dist),
+            iso3c = first(iso3c)) %>% 
+  ggplot(aes(x = dist, y = mean_cmd)) +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed",
+              linewidth = 0.5, fill = "grey") +
+  geom_text_repel(aes(y = mean_cmd, x = dist, label = iso3c),
+                  size = 5.5) +
+  xlab("Distância euclidiana em relação aos Estados Unidos") +
+  ylab("Média de exportação de commodities") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+euclidean_mean
+
+euclidean_2019 <- ws_dataset %>%
+  filter(year == 2019) %>% 
+  group_by(iso3c) %>% 
+  ggplot(aes(x = dist, y = log_real_cmd_exports_pcp)) +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed",
+              linewidth = 0.5, fill = "grey") +
+  geom_text_repel(aes(y = log_real_cmd_exports_pcp, x = dist, label = iso3c),
+                  size = 5.5) +
+  xlab("Distância euclidiana em relação aos Estados Unidos") +
+  ylab("Exportação de commodities (2019)") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+euclidean_2019
+
+euclidean_welfare_2019 <- ws_dataset %>%
+  filter(year == 2019) %>% 
+  group_by(iso3c) %>% 
+  ggplot(aes(x = dist, y = log_cg_pcp_sexp)) +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed",
+              linewidth = 0.5, fill = "grey") +
+  geom_text_repel(aes(y = log_cg_pcp_sexp, x = dist, label = iso3c),
+                  size = 5.5) +
+  xlab("Distância euclidiana em relação aos Estados Unidos") +
+  ylab("Gastos sociais (2019)") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+euclidean_welfare_2019
+
+ggsave("plot/euclidean_mean.jpeg", euclidean_mean,
+       width = 12, height = 8,
+       dpi = 500)
+
+ggsave("plot/euclidean_2019.jpeg", euclidean_2019,
+       width = 12, height = 8,
+       dpi = 500)
+
+ggsave("plot/euclidean_welfare_2019.jpeg", euclidean_welfare_2019,
+       width = 12, height = 8,
        dpi = 500)
 
 # 5. STATIONARITY TESTS -----------------------------------------------------
@@ -1255,63 +1344,6 @@ ws_dataset %>%
   ws_visualizer(real_cmd_exports_pcp, 
                 "Receita de exportação de commodities per capita")
 
-
-# EUCLIDEAN DISTANCE ----------------------------------------------------
-euclidean_mean <- ws_dataset %>%
-  filter(year < 2020) %>% 
-  group_by(iso3c) %>% 
-  summarise(mean_cmd = mean(log_real_cmd_exports_pcp, na.rm = T),
-            dist = first(dist),
-            iso3c = first(iso3c)) %>% 
-  ggplot(aes(x = mean_cmd, y = dist)) +
-  geom_text_repel(aes(y = dist, x = mean_cmd, label = iso3c),
-                  size = 5.5) +
-  xlab("Média de exportação de commodities") +
-  ylab("Distância euclidiana em relação aos Estados Unidos") +
-  stat_cor(label.y = Inf, vjust = 1.0) +
-  geom_point() +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 21))
-
-euclidean_2019 <- ws_dataset %>%
-  filter(year == 2019) %>% 
-  group_by(iso3c) %>% 
-  ggplot(aes(x = log_real_cmd_exports_pcp, y = dist)) +
-  geom_text_repel(aes(y = dist, x = log_real_cmd_exports_pcp, label = iso3c),
-                  size = 5.5) +
-  xlab("Exportação de commodities (2019)") +
-  ylab("Distância euclidiana em relação aos Estados Unidos") +
-  stat_cor(label.y = Inf, vjust = 1.0) +
-  geom_point() +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 21))
-
-ggsave("plot/euclidean_mean.jpeg", euclidean_mean,
-               width = 15, height = 8,
-               dpi = 500)
-
-ggsave("plot/euclidean_2019.jpeg", euclidean_2019,
-       width = 15, height = 8,
-       dpi = 500)
-
-library(ivreg)
-
-data_iv <- ws_dataset %>% filter(year < 2020)
-
-iv1 <- ivreg(log_cg_pcp_sexp ~ log_real_cmd_exports_pcp +
-               maj + kof_trade_df + 
-               dp_ratio_old + v2pariglef_ord + def_prop_gdp +
-               as.character(year) | 
-               dist + maj + kof_trade_df + 
-               dp_ratio_old + v2pariglef_ord + def_prop_gdp + as.character(year), 
-             data = data_iv)
-
-iv1 %>% summary()
-
-coeftest(iv1, vcov = vcovHC, type = "HC1")
-
 # LEFTOVER ----------------------------------------------------------------
 # formula <- glue("cg_gdp_sexp ~ log_real_cmd_exports_pcp + maj +
 #                 kof_trade_df + dp_ratio_old + v2pariglef_ord + def_prop_gdp +
@@ -1453,3 +1485,85 @@ coeftest(iv1, vcov = vcovHC, type = "HC1")
 # ggsave("plot/gg.het.plot.jpeg", gg.het.plot,
 #        width = 20, height = 12,
 #        dpi = 500)
+
+# DISTANCE AS IV
+library(ivreg)
+
+ws_dataset %>%
+  filter(year < 2020) %>% 
+  group_by(iso3c) %>% 
+  ggplot(aes(x = dist, y = log_cg_pcp_sexp)) +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed",
+              linewidth = 0.5, fill = "grey") +
+  xlab("Distância euclidiana em relação aos Estados Unidos") +
+  ylab("") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+ws_dataset %>%
+  filter(year < 2020 & year > 2018) %>% 
+  group_by(iso3c) %>% 
+  ggplot(aes(x = dist, y = log_real_cmd_exports_pcp)) +
+  geom_smooth(method = "lm", color = "black", linetype = "dashed",
+              linewidth = 0.5, fill = "grey") +
+  xlab("Distância euclidiana em relação aos Estados Unidos") +
+  ylab("") +
+  stat_cor(label.y = Inf, vjust = 1.0) +
+  geom_point() +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size = 21))
+
+data_iv <- ws_dataset %>% filter(year < 2020)
+
+iv1 <- ivreg(log_cg_pcp_sexp ~ log_real_cmd_exports_pcp +
+               maj + kof_trade_df +
+               dp_ratio_old + v2pariglef_ord + def_prop_gdp +
+               as.character(year) |
+               dist + maj + kof_trade_df +
+               dp_ratio_old + v2pariglef_ord + def_prop_gdp + as.character(year),
+             data = data_iv)
+
+iv1 %>% summary()
+
+coeftest(iv1, vcov = vcovHC, type = "HC1")
+
+hist_cg_pcp_sexp <- ws_dataset %>% 
+  data_sample(variable = "cg_pcp_sexp", old_dataset = dataset) %>% 
+  ggplot(aes(x = cg_pcp_sexp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 100) +
+  theme_minimal() +
+  xlab("Gastos sociais - Escala original") +
+  ylab("")
+  
+hist_log_cg_pcp_sexp <- ws_dataset %>% 
+  data_sample(variable = "log_cg_pcp_sexp", old_dataset = dataset) %>% 
+  ggplot(aes(x = log_cg_pcp_sexp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 0.15) +
+  theme_minimal() +
+  xlab("Gastos sociais - Escala logarítmica") +
+  ylab("")
+
+ggarrange(hist_cg_pcp_sexp, hist_log_cg_pcp_sexp, ncol = 2)
+
+hist_cmd <- ws_dataset %>% 
+  data_sample(variable = "real_cmd_exports_pcp", old_dataset = dataset) %>% 
+  ggplot(aes(x = real_cmd_exports_pcp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 100) +
+  theme_minimal() +
+  xlab("Exportação de commodities - Escala original") +
+  ylab("")
+
+hist_log_cmd <- ws_dataset %>% 
+  data_sample(variable = "real_cmd_exports_pcp", old_dataset = dataset) %>% 
+  ggplot(aes(x = log_real_cmd_exports_pcp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 0.1) +
+  theme_minimal() +
+  xlab("Exportação de commodities - Escala logarítmica") +
+  ylab("")
+
+ggarrange(hist_cmd, hist_log_cmd, ncol = 2)
+
