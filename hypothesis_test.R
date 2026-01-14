@@ -263,6 +263,12 @@ ws_dataset %>%
   data_sample(variable = "cg_pcp_sexp",
               old_dataset = dataset) %>% distinct(iso3c)
 
+# Time mean
+ws_dataset %>% 
+  data_sample(variable = "cg_gdp_sexp",
+              old_dataset = dataset) %>% group_by(iso3c) %>% 
+  summarise(x = sum(!is.na(cg_pcp_sexp))) %>% ungroup() %>% summarise(mean(x))
+
 # Number of missings
 ws_dataset %>% 
   filter(iso3c %in% eff_iso3c$iso3c) %>% 
