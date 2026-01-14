@@ -548,13 +548,13 @@ gg_boom_export <- boom_var %>%
   labs(shape = "Região") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 24),
+        text = element_text(size = 20),
         axis.text.x = element_text(angle = 45, hjust = 1))
 
 gg_boom_export
 
 ggsave("plot/gg_boom_export.jpeg", gg_boom_export, 
-       width = 20, height = 12, 
+       width = 15, height = 9, 
        dpi = 500)
 
 # Social expenditure percentual change
@@ -576,13 +576,13 @@ gg_boom_sexp <- boom_var %>%
   labs(shape = "Região") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5),
-        text = element_text(size = 24),
+        text = element_text(size = 20),
         axis.text.x = element_text(angle = 45, hjust = 1))
 
 gg_boom_sexp
 
 ggsave("plot/gg_boom_sexp.jpeg", gg_boom_sexp, 
-       width = 20, height = 12, 
+       width = 15, height = 8, 
        dpi = 500)
 
 ## 3.3 Boxplots ---------------------------------------------
@@ -608,9 +608,59 @@ ws_dataset %>%
   ylab("Gasto Social per capita") +
   theme_minimal()
 
-## 3.4 Percentual change by subsamples -----------------------------------------
 
-### 3.4.1 Dependent variable = Social spending per capita -------
+## 3.4 Histograms ----------------------------------------------------------
+hist_cg_pcp_sexp <- ws_dataset %>% 
+  data_sample(variable = "cg_pcp_sexp", old_dataset = dataset) %>% 
+  ggplot(aes(x = cg_pcp_sexp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 100) +
+  theme_minimal() +
+  xlab("Gastos sociais \n Escala original") +
+  ylab("") +
+  theme(text = element_text(size = 24))
+
+hist_log_cg_pcp_sexp <- ws_dataset %>% 
+  data_sample(variable = "log_cg_pcp_sexp", old_dataset = dataset) %>% 
+  ggplot(aes(x = log_cg_pcp_sexp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 0.15) +
+  theme_minimal() +
+  xlab("Gastos sociais \n Escala logarítmica") +
+  ylab("") +
+  theme(text = element_text(size = 24))
+
+hist_pcp_sexp <- ggarrange(hist_cg_pcp_sexp, hist_log_cg_pcp_sexp, ncol = 2)
+
+hist_cmd <- ws_dataset %>% 
+  data_sample(variable = "real_cmd_exports_pcp", old_dataset = dataset) %>% 
+  ggplot(aes(x = real_cmd_exports_pcp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 200) +
+  theme_minimal() +
+  xlab("Exportação de commodities \n Escala original") +
+  ylab("") +
+  theme(text = element_text(size = 24))
+
+hist_log_cmd <- ws_dataset %>% 
+  data_sample(variable = "real_cmd_exports_pcp", old_dataset = dataset) %>% 
+  ggplot(aes(x = log_real_cmd_exports_pcp)) +
+  geom_histogram(colour = "black", fill = "grey", binwidth = 0.2) +
+  theme_minimal() +
+  xlab("Exportação de commodities \n Escala logarítmica") +
+  ylab("") +
+  theme(text = element_text(size = 24))
+
+hist_cmd <- ggarrange(hist_cmd, hist_log_cmd, ncol = 2)
+
+ggsave("plot/hist_pcp_sexp.jpeg", hist_pcp_sexp, 
+       width = 14, height = 8, 
+       dpi = 500)
+
+ggsave("plot/hist_cmd.jpeg", hist_cmd, 
+       width = 14, height = 8, 
+       dpi = 500)
+
+## 3.5 Percentual change by subsamples -----------------------------------------
+
+### 3.5.1 Dependent variable = Social spending per capita -------
 ws_dataset_var <- ws_dataset %>% 
   data_sample(variable = "cg_pcp_sexp",
               old_dataset = dataset) %>% 
@@ -645,21 +695,21 @@ ws_dataset %>%
           region2 = first(region2)) %>% 
   reframe(mean(cmd_var))
 
-### 3.4.2 Dependent variable = Social spending (% total) ------------------
+### 3.5.2 Dependent variable = Social spending (% total) ------------------
 ws_dataset %>% 
   data_sample(variable = "cg_prop_sexp",
               old_dataset = dataset) %>% 
   reframe(mean = mean(cg_prop_sexp, na.rm = T),
           sd = sd(cg_prop_sexp, na.rm = T))
 
-### 3.4.3 Dependent variable = Social spending (% GDP) ------------------
+### 3.5.3 Dependent variable = Social spending (% GDP) ------------------
 ws_dataset %>% 
   data_sample(variable = "cg_gdp_sexp",
               old_dataset = dataset) %>% 
   reframe(mean = mean(cg_gdp_sexp, na.rm = T),
           sd = sd(cg_gdp_sexp, na.rm = T))
 
-# 3.5 Costa Rica vs Panama ------------------------------------------------
+# 3.6 Costa Rica vs Panama ------------------------------------------------
 ws_dataset %>% 
   filter(iso3c %in% c("PAN", "CRI")) %>% 
   group_by(iso3c) %>% 
@@ -1530,40 +1580,3 @@ iv1 <- ivreg(log_cg_pcp_sexp ~ log_real_cmd_exports_pcp +
 iv1 %>% summary()
 
 coeftest(iv1, vcov = vcovHC, type = "HC1")
-
-hist_cg_pcp_sexp <- ws_dataset %>% 
-  data_sample(variable = "cg_pcp_sexp", old_dataset = dataset) %>% 
-  ggplot(aes(x = cg_pcp_sexp)) +
-  geom_histogram(colour = "black", fill = "grey", binwidth = 100) +
-  theme_minimal() +
-  xlab("Gastos sociais - Escala original") +
-  ylab("")
-  
-hist_log_cg_pcp_sexp <- ws_dataset %>% 
-  data_sample(variable = "log_cg_pcp_sexp", old_dataset = dataset) %>% 
-  ggplot(aes(x = log_cg_pcp_sexp)) +
-  geom_histogram(colour = "black", fill = "grey", binwidth = 0.15) +
-  theme_minimal() +
-  xlab("Gastos sociais - Escala logarítmica") +
-  ylab("")
-
-ggarrange(hist_cg_pcp_sexp, hist_log_cg_pcp_sexp, ncol = 2)
-
-hist_cmd <- ws_dataset %>% 
-  data_sample(variable = "real_cmd_exports_pcp", old_dataset = dataset) %>% 
-  ggplot(aes(x = real_cmd_exports_pcp)) +
-  geom_histogram(colour = "black", fill = "grey", binwidth = 100) +
-  theme_minimal() +
-  xlab("Exportação de commodities - Escala original") +
-  ylab("")
-
-hist_log_cmd <- ws_dataset %>% 
-  data_sample(variable = "real_cmd_exports_pcp", old_dataset = dataset) %>% 
-  ggplot(aes(x = log_real_cmd_exports_pcp)) +
-  geom_histogram(colour = "black", fill = "grey", binwidth = 0.1) +
-  theme_minimal() +
-  xlab("Exportação de commodities - Escala logarítmica") +
-  ylab("")
-
-ggarrange(hist_cmd, hist_log_cmd, ncol = 2)
-
