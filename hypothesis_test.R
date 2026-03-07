@@ -1095,6 +1095,39 @@ plm_test <- function(model, data, vd, direction = "individual") {
 linear_reg_results <- plm_test(as.formula(plm.model), 
                                      ws_dataset, "log_cg_pcp_sexp")
 
+# Graph
+linear_result_plot <- linear_reg_results %>% 
+  add_row(outcome = "log_cg_pcp_sexp", model = "gmm", 
+          term = "log_real_cmd_exports_pcp", estimate = .0977693,
+          std.error = .0551567, p.value = 0.076,
+          conf.low = -.0103359, conf.high = .2058745,
+          nobs = NA, adj.rsquared = NA, significance = "*") %>% 
+  filter(term == "log_real_cmd_exports_pcp", model != "fd") %>% 
+  ggplot(aes(x =  fct_reorder(model, estimate), y = estimate)) +
+  geom_point(size = 3) +
+  geom_segment(aes(x = model, xend = model, y = conf.low, yend = conf.high)) +
+  geom_hline(aes(yintercept = 0),
+             linetype = 'dashed', linewidth = 0.5) +
+  scale_x_discrete(labels = c("MMG", 
+                              "MQO: Efeitos Fixos",
+                              "MQO: Efeitos Aleatórios",
+                              "Dados Empilhados")) +
+  ylab("Coeficiente") +
+  xlab("Modelo") +
+  geom_text(
+    aes(x = model,
+        label = round(estimate, 3)),
+    vjust = -0.9, size = 5
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(text = element_text(size = 18))
+
+linear_result_plot
+
+ggsave("plot/linear_result_plot.jpeg", linear_result_plot, width = 12, height = 8, 
+       dpi = 500)
+
 # Counter-argument
 linear_reg_results.b <- plm_test(as.formula(plm.model.b), 
                                ws_dataset, "log_cg_pcp_sexp")
@@ -1232,9 +1265,9 @@ options(scipen=999)
 
 prop.budget.results <- glm_test(ws_dataset, "cg_prop_sexp", prop.budget.model)
 
-prop.gdp.results <- glm_test(ws_dataset, "cg_gdp_sexp", prop.gdp.model.b)
+prop.gdp.results <- glm_test(ws_dataset, "cg_gdp_sexp", prop.gdp.model)
 
-prop.gdp.results %>% 
+prop.gdp.results %>%
   filter(!grepl(x = term, pattern = "b_")) %>%
   mutate(estimate = paste0(round(estimate, digits = 3),
                            " ", significance,
@@ -1249,6 +1282,60 @@ prop.gdp.results %>%
   distinct(term, .keep_all = T) %>%
   select(pooled, ape_pooled, cre, ape_cre,
          creu, ape_creu)
+
+prop.budget_result_plot <- prop.budget.results %>% 
+  filter(term == "log_real_cmd_exports_pcp", str_detect(model, "ape")) %>% 
+  ggplot(aes(x =  fct_reorder(model, estimate), y = estimate)) +
+  geom_point(size = 3) +
+  geom_segment(aes(x = model, xend = model, y = conf.low, yend = conf.high)) +
+  geom_hline(aes(yintercept = 0),
+             linetype = 'dashed', linewidth = 0.5) +
+  scale_x_discrete(labels = c("Probit (EAC)", 
+                              "Probit (EACD)",
+                              "Probit (Empilhado)")) +
+  ylab("Coeficiente") +
+  xlab("Modelo") +
+  geom_text(
+    aes(x = model,
+        label = round(estimate, 3)),
+    vjust = -0.9, size = 5
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(text = element_text(size = 18))
+
+prop.budget_result_plot
+
+ggsave("plot/prop.budget_result_plot.jpeg", prop.budget_result_plot, width = 12,
+       height = 8, 
+       dpi = 500)
+
+prop.gdp_result_plot <- prop.gdp.results %>% 
+  filter(term == "log_real_cmd_exports_pcp", str_detect(model, "ape")) %>% 
+  ggplot(aes(x =  fct_reorder(model, estimate), y = estimate)) +
+  geom_point(size = 3) +
+  geom_segment(aes(x = model, xend = model, y = conf.low, yend = conf.high)) +
+  geom_hline(aes(yintercept = 0),
+             linetype = 'dashed', linewidth = 0.5) +
+  scale_x_discrete(labels = c("Probit (EAC)", 
+                              "Probit (EACD)",
+                              "Probit (Empilhado)")) +
+  ylab("Coeficiente") +
+  xlab("Modelo") +
+  geom_text(
+    aes(x = model,
+        label = round(estimate, 3)),
+    vjust = -0.9, size = 5
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(text = element_text(size = 18))
+
+prop.gdp_result_plot
+
+ggsave("plot/prop.gdp_result_plot.jpeg", prop.gdp_result_plot, width = 12,
+       height = 8, 
+       dpi = 500)
 
 ## 7.3 BETA REGRESSION WITH CORRELATED RANDOM EFFECTS -------------------------
 # Setup

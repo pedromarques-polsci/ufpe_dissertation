@@ -1,6 +1,6 @@
 * ssc install xtabond2
 
-capture cd "C:\Users\Pedro\Documents\ws_dissertation"
+capture cd "C:\Users\Pedro\Documents\ufpe_dissertation"
 use final_data\gmm_data.dta
 
 egen countrynum = group(iso3c)
