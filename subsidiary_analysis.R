@@ -58,19 +58,21 @@ socx_asc_txt <- socx_df %>%
   group_by(time_period) %>% 
   reframe(asc_time = toString(asc))
 
+# Original members
 socx_ts_old <- socx_df %>% 
   group_by(ref_area) %>% 
   mutate(new = mean(membership)) %>% 
   ungroup() %>% 
   filter(time_period < 2020, new == 1) %>% 
   group_by(time_period) %>% 
-  reframe(gdp_pct_old = mean(gdp_pct, na.rm = T))
+  reframe(gdp_pct_old = median(gdp_pct, na.rm = T))
 
+# With new members
 socx_ts <- socx_df %>% 
   filter(time_period < 2020) %>% 
   group_by(time_period) %>% 
   mutate(gdp_pct = ifelse(membership == 0, NA, gdp_pct)) %>% 
-  reframe(public_gdp_pct = mean(gdp_pct, na.rm = T)) %>% 
+  reframe(public_gdp_pct = median(gdp_pct, na.rm = T)) %>% 
   left_join(socx_asc_txt) %>% 
   left_join(socx_ts_old) %>% 
   pivot_longer(cols = c(gdp_pct_old, public_gdp_pct),
@@ -78,7 +80,7 @@ socx_ts <- socx_df %>%
                values_to = "value")
 
 shade <- data.frame(x1=c(2007, 1990), x2=c(2009, 1993), 
-                    y1=c(15.5, 15.5), y2=c(23.2, 23.2))
+                    y1=c(-Inf, -Inf), y2=c(Inf, Inf))
 
 gg_socx_gdp <- socx_ts %>% 
   ggplot(aes(x = time_period, y = value, 
@@ -96,7 +98,7 @@ gg_socx_gdp <- socx_ts %>%
   #             linewidth = 0.5, fill = "lightblue") +
   scale_linetype_manual(labels = c("Membros de 1980", "Todos os membros"),
                         values = c("twodash", "solid")) +
-  labs(x = "Ano", y = "Média de gasto social (% PIB)", linetype = "Amostra") +
+  labs(x = "Ano", y = "Mediana de gasto social (% PIB)", linetype = "Amostra") +
   theme_minimal() +
   theme(text = element_text(size = 30),
         axis.text.x = element_text(angle = 45, hjust = 1),

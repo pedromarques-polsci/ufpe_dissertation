@@ -71,7 +71,7 @@ correct_names <- data.frame(
             "YUG", "YUG",
             "PCI",
             "DDR", "DDR", "DDR",
-            0, "PNG", "SSW",
+            "CYN", "PNG", "SSW",
             "KSV", "SML", "ZZB",
             "PSB", "PSG", "CHI",
             "YMD", "YMD", "YMD", "YMD",
@@ -195,9 +195,8 @@ social_spending$country[social_spending$country ==
                           "Bolivia (Plurinational State of)"] <- 'Bolivia'
 public_spending$country[social_spending$country == 
                           "Bolivia (Plurinational State of)"] <- 'Bolivia'
-social_spending_gdp$country[social_spending$country == 
+social_spending_gdp$country[social_spending_gdp$country == 
                           "Bolivia (Plurinational State of)"] <- 'Bolivia'
-
 
 social_spending<- social_spending %>% 
   mutate(country = countryname(country),
@@ -241,11 +240,14 @@ saveRDS(lac_expenditure, "final_data/lac_expenditure.RDS")
 
 # 2. INDEPENDENT VARIABLE -------------------------------------------------
 ## 2.1 Deflator -----------------------------------------------------------
+
+# It's not effectively employed, but I keep it
 cpi <- wb_etl(y = "FP.CPI.TOTL", w = 1980, z = 2022) %>% 
   filter(iso3c == "USA") %>% 
   rename(us_cpi = FP.CPI.TOTL) %>% 
   select(iso3c, year, us_cpi)
 
+# This is the deflator that I effectively employ
 xpi <- read_xlsx("raw_data/export_price_index.xlsx", skip = 10) %>% 
   clean_names() %>% 
   pivot_longer(cols = jan:dec, names_to = "month", values_to = "xpi") %>% 
@@ -374,6 +376,7 @@ lead_check %>%
 
 # Data correction
 leadglob_final <- leadglob %>% 
+  group_by(iso3c) %>% 
   mutate(
     # BRAZIL
     # Collor de Melo (left office at the end of the year)
@@ -407,13 +410,6 @@ leadglob_final <- leadglob %>%
                              "PSL", HoS_party_short),
     HoS_party_id = ifelse(grepl("Bolsonaro", HoS_name),
                           6920, HoS_party_id),
-    
-    HoS_party_english = ifelse(grepl("Bolsonaro", HoS_name),
-                             "Social Liberal Party", HoS_party_english),
-    HoS_party_short = ifelse(grepl("Bolsonaro", HoS_name),
-                             "PSL", HoS_party_short),
-    HoS_party_id = ifelse(grepl("Bolsonaro", HoS_name),
-                               6920, HoS_party_id),
     
     # BOLIVIA: presidents take office irregularly
     HoS_party_short = ifelse(iso3c %in% c("BOL") &
@@ -478,13 +474,13 @@ leadglob_final <- leadglob %>%
     # GUATEMALA: 
     ## There is only v-party data for GANA (a coalition) in 2004-7
     HoS_party_short = ifelse(grepl("Óscar José Rafael", HoS_name),
-                                    "GANA",
-                                  HoS_party_short),
+                             "GANA",
+                             HoS_party_short),
     HoS_party_id = ifelse(grepl("Óscar José Rafael", HoS_name), 538,
                           HoS_party_id),
     HoS_party_english = ifelse(grepl("Óscar José Rafael", HoS_name),
-                                    "Grand National Alliance",
-                                    HoS_party_english),
+                               "Grand National Alliance",
+                               HoS_party_english),
     
     # GUATEMALA: Alejandro stayed in office for few months
     HoS_party_short = ifelse(iso3c %in% c("GTM") &
@@ -824,20 +820,19 @@ settler_mortality <- settler_mortality %>%
   rbind(settler_mortality %>% filter(country %in% intersect(settler_mortality$country, 
                                                   correct_names$country)))
 
-# 6. EUCLIDEAN DISTANCE ------------------------------------------------
+# 6. GEODESIC DISTANCE ------------------------------------------------
 st_iso3c <- c("USA", "ATG", "BHS", "BRB", "CUB", "DMA", "DOM", "GRD", "HTI", 
            "KNA", "LCA", "VCT", "TTO", "BLZ", "CRI", "SLV", "GTM", "HND", 
            "MEX", "NIC", "PAN", "ARG", "BOL", "BRA", "CHL", "COL", "ECU", 
            "GUY", "PRY", "PER", "SUR", "URY", "VEN", "JAM")
 
-geo_sf <- ne_countries(scale = "large", returnclass="sf") %>% 
-  filter(iso_a3 %in% st_iso3c)
+geo_centroids <- st_centroid(geo_sf)
 
-df_country_iso <- geo_sf$iso_a3
+df_dist <- st_distance(geo_centroids[geo_centroids$iso_a3 == "USA",], 
+                       geo_centroids) %>% 
+  as.numeric() / 1000
 
 geo_sf$admin[20]
-
-df_dist <- st_distance(geo_sf[20,], geo_sf) %>% as.numeric()
 
 country_distances <- data.frame(iso3c = df_country_iso,
                                 dist = df_dist)
@@ -851,7 +846,7 @@ ws_dataset <- lac %>%
   
   # Dependent Variables
   left_join(lac_expenditure %>% select(year, iso3c, cg_pcp_sexp, cg_prop_sexp, 
-                                       cg_prop_def, cg_gdp_sexp, -country),
+                                       cg_prop_def, cg_gdp_sexp),
             join_by(year, iso3c)) %>%
   
   left_join(ncp_count %>% select(-country), join_by(year, iso3c)) %>% 
@@ -865,20 +860,17 @@ ws_dataset <- lac %>%
   # Political Covariates
   left_join(dpi %>% select(iso3c, year, system, maj, execrlc, exelec), 
             join_by(year, iso3c)) %>% 
-  left_join(statecap_v14 %>% select(iso3c, year, statecap_baseline,
-                                    -country)) %>% 
+  left_join(statecap_v14 %>% select(iso3c, year, statecap_baseline)) %>% 
   left_join(democratic.set %>% select(iso3c, year, 
                                       v2x_polyarchy, demstock_one)) %>% 
   
   # Political Economy
   left_join(weo %>% select(iso3c, year, gdp_pcp_ppp, inf_eop_g, unemp,
-                           gg_rev,
-                           -country)) %>%
+                           gg_rev)) %>%
   
   left_join(cg_debt %>% select(-country),
             join_by(year, iso3c)) %>% 
-  left_join(globalization %>% select(iso3c, year, kof_trade_df, kof_trade_dj,
-                                     -country),
+  left_join(globalization %>% select(iso3c, year, kof_trade_df, kof_trade_dj),
             join_by(year, iso3c)) %>% 
   # Alternate military expenditures
   left_join(def_prop_gdp %>% select(iso3c, year, def_prop_gdp),
@@ -902,8 +894,8 @@ ws_dataset <- lac %>%
                                # ethwar, # Ethnic war
                                civtot),
             join_by(year, iso3c)) %>% 
-  left_join(settler_mortality %>% select(year, iso3c, ajr_settmort),
-            join_by(year, iso3c)) %>% 
+  left_join(settler_mortality %>% select(iso3c, ajr_settmort),
+            join_by(iso3c)) %>% 
   
   # Euclidean distance
   left_join(country_distances, join_by(iso3c))
@@ -951,7 +943,7 @@ ws_dataset.ideo <- ws_dataset.lead %>%
                              destination = "iso3c"))
 
 final_ws_dataset <- ws_dataset.ideo %>%
-  select(-c(iso3c.x, iso3c.y, year.x, iso3c.y, year.y, year2)) %>%
+  select(-c(iso3c.x, iso3c.y, year.x, year.y, year2)) %>%
   rename(year = year1) %>% 
   relocate(region, iso3c, country, year, system,
            leader, party_name, pf_party_id, party_short) %>%

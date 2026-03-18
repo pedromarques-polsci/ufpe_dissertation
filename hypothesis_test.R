@@ -171,20 +171,15 @@ kof_trade_df + dp_ratio_old + v2pariglef_ord"
 prop.budget.model <- "cg_prop_sexp ~ log_real_cmd_exports_pcp + maj + 
 kof_trade_df + dp_ratio_old + v2pariglef_ord + def_prop_gdp"
 
-prop.budget.model.b <- "cg_prop_sexp ~ log_real_cmd_exports_pcp + maj + 
-kof_trade_df + dp_ratio_old + v2pariglef_ord"
-
 prop.gdp.model <- "cg_gdp_sexp ~ log_real_cmd_exports_pcp + maj + 
 kof_trade_df + dp_ratio_old + v2pariglef_ord + def_prop_gdp"
-
-prop.gdp.model <- "cg_gdp_sexp ~ log_real_cmd_exports_pcp + maj + 
-kof_trade_df + dp_ratio_old + v2pariglef_ord"
 
 ## 1.4 Dataset for GMM analysis --------------------------------------------
 gmm_dataset <- ws_dataset %>% data_sample(variable = "log_cg_pcp_sexp",
                            old_dataset = dataset)
 
 write_dta(gmm_dataset, "final_data/gmm_data.dta")
+write_rds(ws_dataset, "final_data/treated_ws_dataset.rds")
 
 rm(gmm_dataset)
 

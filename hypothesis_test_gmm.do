@@ -7,13 +7,6 @@ egen countrynum = group(iso3c)
 
 xtset countrynum year, yearly
 
-* Without instruments
-xtabond2 log_cg_pcp_sexp log_real_cmd_exports_pcp l1.log_cg_pcp_sexp maj kof_trade_df ///
-	dp_ratio_old v2pariglef_ord def_prop_gdp, ///
-	iv(log_cg_pcp_sexp log_real_cmd_exports_pcp l1.log_cg_pcp_sexp maj kof_trade_df ///
-	dp_ratio_old v2pariglef_ord def_prop_gdp) ///
-	robust twostep
-
 * With instruments
 xtabond2 log_cg_pcp_sexp log_real_cmd_exports_pcp l1.log_cg_pcp_sexp /// 
 maj kof_trade_df dp_ratio_old v2pariglef_ord def_prop_gdp, ///
@@ -29,6 +22,14 @@ maj kof_trade_df dp_ratio_old v2pariglef_ord def_prop_gdp, ///
 * nolevel = difference GMM
 
 * Leftover
+* Without instruments
+xtabond2 log_cg_pcp_sexp log_real_cmd_exports_pcp l1.log_cg_pcp_sexp maj kof_trade_df ///
+	dp_ratio_old v2pariglef_ord def_prop_gdp, ///
+	iv(log_cg_pcp_sexp log_real_cmd_exports_pcp l1.log_cg_pcp_sexp maj kof_trade_df ///
+	dp_ratio_old v2pariglef_ord def_prop_gdp) ///
+	robust twostep
+
+* Other
 ivregress gmm log_cg_pcp_sexp maj kof_trade_df ///
 dp_ratio_old v2pariglef_ord def_prop_gdp i.countrynum ///
 (log_real_cmd_exports_pcp = L3.log_real_cmd_exports_pcp)
